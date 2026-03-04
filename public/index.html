@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🐾 宠物领养 - 给它一个家</title>
+  <script src="https://cdn.jsdelivr.net/npm/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Noto Sans SC', sans-serif; }
+    .pet-card { transition: transform 0.2s, box-shadow 0.2s; }
+    .pet-card:hover { transform: translateY(-4px); box-shadow: 0 12px 24px rgba(0,0,0,0.15); }
+    .badge { transition: all 0.2s; }
+    .modal-enter-active, .modal-leave-active { transition: opacity 0.3s; }
+    .modal-enter-from, .modal-leave-to { opacity: 0; }
+  </style>
+</head>
+<body class="bg-gradient-to-br from-amber-50 to-orange-100 min-h-screen">
+  <div id="app">
+    <!-- 头部 -->
+    <header class="bg-white shadow-md sticky top-0 z-50">
+      <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <span class="text-3xl">🐾</span>
+          <h1 class="text-2xl font-bold text-orange-600">宠物领养</h1>
+        </div>
+        <nav class="flex gap-6">
+          <button @click="currentView = 'home'" :class="currentView === 'home' ? 'text-orange-600 font-bold' : 'text-gray-600'" class="hover:text-orange-500 transition">首页</button>
+          <button @click="currentView = 'adoptions'" :class="currentView === 'adoptions' ? 'text-orange-600 font-bold' : 'text-gray-600'" class="hover:text-orange-500 transition">我的申请</button>
+        </nav>
+      </div>
+    </header>
+
+    <!-- 首页 -->
+    <main v-if="currentView === 'home'" class="max-w-6xl mx-auto px-4 py-8">
+      <!-- 搜索筛选 -->
+      <div class="bg-white rounded-2xl shadow-lg p-6 mb-8">
+        <div class="flex flex-wrap gap-4 items-center">
+          <input v-model="search" @input="fetchPets" type="text" placeholder="搜索宠物名字/品种..." 
+            class="flex-1 min-w-48 px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-400 focus:border-transparent outline-none">
+          
+          <select v-model="filterType" @change="fetchPets" class="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-400 outline-none">
+            <option value="">全部类型</option>
+            <option value="dog">🐕 狗狗</option>
+            <option value="cat">🐱 猫咪</option>
+            <option value="rabbit">🐰 兔子</option>
+          </select>
+          
+          <select v-model="filterStatus" @change="fetchPets" class="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-400 outline-none">
+            <option value="">全部状态</option>
+            <option value="available">待领养</option>
+            <option value="adopted">已领养</option>
+          </select>
+          
+          <span class="text-gray-500">共 {{ pets.length }} 只宠物</span>
+        </div>
+      </div>
+
+      <!-- 宠物卡片网格 -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div v-for="pet in pets" :key="pet.id" class="pet-card bg-white rounded-2xl shadow-md overflow-hidden">
+          <div class="relative">
+            <img :src="pet.image" :alt="pet.name" class="w-full h-48 object-cover">
+            <span v-if="pet.status === 'adopted'" class="absolute top-3 right-3 bg-gray-500 text-white px-3 py-1 rounded-full text-sm">已领养</span>
+            <span v-else class="absolute top-3 right-3 bg-orange-500 text-white px-3 py-1 rounded-full text-sm">待领养</span>
+          </div>
+          <div class="p-4">
+            <div class="flex items-center gap-2 mb-2">
+              <span class="text-2xl">{{ pet.type === 'dog' ? '🐕' : pet.type === 'cat' ? '🐱' : '🐰' }}</span>
+              <h3 class="text-xl font-bold text-gray-800">{{ pet.name }}</h3>
+              <span class="text-sm text-gray-500">{{ pet.breed }}</span>
+            </div>
+            <div class="flex gap-2 mb-3">
+              <span class="bg-gray-100 text-gray-600 px-2 py-1 rounded text-sm">年龄: {{ pet.age }}岁</span>
+              <span class="bg-gray-100 text-gray-600 px-2 py-1 rounded text-sm">{{ pet.gender }}</span>
+            </div>
+            <p class="text-gray-600 text-sm mb-4 line-clamp-2">{{ pet.description }}</p>
+            <button v-if="pet.status === 'available'" @click="openAdoptModal(pet)" 
+              class="w-full bg-orange-500 hover:bg-orange-600 text-white font-bold py-2 px-4 rounded-lg transition">
+              ❤️ 申请领养
+            </button>
+            <button v-else disabled class="w-full bg-gray-300 text-gray-500 font-bold py-2 px-4 rounded-lg cursor-not-allowed">
+              已找到家
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 空状态 -->
+      <div v-if="pets.length === 0" class="text-center py-16">
+        <span class="text-6xl">😢</span>
+        <p class="text-gray-500 mt-4 text-lg">暂无符合条件的宠物</p>
+      </div>
+    </main>
+
+    <!-- 我的申请 -->
+    <main v-if="currentView === 'adoptions'" class="max-w-4xl mx-auto px-4 py-8">
+      <h2 class="text-2xl font-bold text-gray-800 mb-6">📋 我的领养申请</h2>
+      
+      <div v-if="adoptions.length === 0" class="text-center py-16 bg-white rounded-2xl shadow-lg">
+        <span class="text-6xl">📝</span>
+        <p class="text-gray-500 mt-4">暂无申请记录</p>
+        <button @click="currentView = 'home'" class="mt-4 text-orange-500 hover:underline">去浏览宠物</button>
+      </div>
+
+      <div v-else class="space-y-4">
+        <div v-for="adoption in adoptions" :key="adoption.id" class="bg-white rounded-xl shadow-md p-6">
+          <div class="flex items-start justify-between">
+            <div>
+              <h3 class="font-bold text-lg">{{ adoption.pet_name }}</h3>
+              <p class="text-gray-500 text-sm">{{ adoption.pet_type === 'dog' ? '🐕' : '🐱' }} {{ adoption.applicant_name }} · {{ adoption.phone }}</p>
+              <p class="text-gray-600 mt-2">{{ adoption.reason }}</p>
+            </div>
+            <span :class="adoption.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : adoption.status === 'approved' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'" 
+              class="px-3 py-1 rounded-full text-sm font-medium">
+              {{ adoption.status === 'pending' ? '待审核' : adoption.status === 'approved' ? '已通过' : '已拒绝' }}
+            </span>
+          </div>
+          <p class="text-gray-400 text-xs mt-2">{{ new Date(adoption.created_at).toLocaleString('zh-CN') }}</p>
+        </div>
+      </div>
+    </main>
+
+    <!-- 领养弹窗 -->
+    <div v-if="showAdoptModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" @click.self="closeAdoptModal">
+      <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6">
+        <h3 class="text-xl font-bold text-gray-800 mb-4">❤️ 申请领养 {{ selectedPet?.name }}</h3>
+        
+        <form @submit.prevent="submitAdoption" class="space-y-4">
+          <div>
+            <label class="block text-gray-600 text-sm mb-1">您的姓名 *</label>
+            <input v-model="adoptForm.applicant_name" type="text" required
+              class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-400 outline-none">
+          </div>
+          
+          <div>
+            <label class="block text-gray-600 text-sm mb-1">联系电话 *</label>
+            <input v-model="adoptForm.phone" type="tel" required
+              class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-400 outline-none">
+          </div>
+          
+          <div>
+            <label class="block text-gray-600 text-sm mb-1">电子邮箱</label>
+            <input v-model="adoptForm.email" type="email"
+              class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-400 outline-none">
+          </div>
+          
+          <div>
+            <label class="block text-gray-600 text-sm mb-1">领养理由 *</label>
+            <textarea v-model="adoptForm.reason" required rows="3"
+              class="w-full px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-orange-400 outline-none"></textarea>
+          </div>
+          
+          <div class="flex gap-3">
+            <button type="button" @click="closeAdoptModal" 
+              class="flex-1 px-4 py-2 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition">
+              取消
+            </button>
+            <button type="submit" 
+              class="flex-1 px-4 py-2 bg-orange-500 text-white font-bold rounded-lg hover:bg-orange-600 transition">
+              提交申请
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- 提示消息 -->
+    <div v-if="showToast" class="fixed bottom-6 right-6 bg-green-500 text-white px-6 py-3 rounded-xl shadow-lg z-50">
+      {{ toastMessage }}
+    </div>
+  </div>
+
+  <script>
+    const { createApp, ref, onMounted } = Vue;
+
+    createApp({
+      setup() {
+        const pets = ref([]);
+        const adoptions = ref([]);
+        const currentView = ref('home');
+        const search = ref('');
+        const filterType = ref('');
+        const filterStatus = ref('');
+        
+        const showAdoptModal = ref(false);
+        const selectedPet = ref(null);
+        const adoptForm = ref({
+          applicant_name: '',
+          phone: '',
+          email: '',
+          reason: ''
+        });
+        
+        const showToast = ref(false);
+        const toastMessage = ref('');
+
+        const fetchPets = async () => {
+          const params = new URLSearchParams();
+          if (search.value) params.append('search', search.value);
+          if (filterType.value) params.append('type', filterType.value);
+          if (filterStatus.value) params.append('status', filterStatus.value);
+          
+          const res = await fetch(`/api/pets?${params}`);
+          pets.value = await res.json();
+        };
+
+        const fetchAdoptions = async () => {
+          const res = await fetch('/api/adoptions');
+          adoptions.value = await res.json();
+        };
+
+        const openAdoptModal = (pet) => {
+          selectedPet.value = pet;
+          showAdoptModal.value = true;
+        };
+
+        const closeAdoptModal = () => {
+          showAdoptModal.value = false;
+          selectedPet.value = null;
+          adoptForm.value = { applicant_name: '', phone: '', email: '', reason: '' };
+        };
+
+        const submitAdoption = async () => {
+          try {
+            const res = await fetch('/api/adoptions', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                pet_id: selectedPet.value.id,
+                ...adoptForm.value
+              })
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+              toastMessage.value = '✅ ' + data.message;
+              showToast.value = true;
+              setTimeout(() => showToast.value = false, 3000);
+              closeAdoptModal();
+              fetchPets();
+              fetchAdoptions();
+              currentView.value = 'adoptions';
+            } else {
+              alert(data.error);
+            }
+          } catch (err) {
+            alert('提交失败，请重试');
+          }
+        };
+
+        onMounted(() => {
+          fetchPets();
+          fetchAdoptions();
+        });
+
+        return {
+          pets,
+          adoptions,
+          currentView,
+          search,
+          filterType,
+          filterStatus,
+          showAdoptModal,
+          selectedPet,
+          adoptForm,
+          showToast,
+          toastMessage,
+          fetchPets,
+          openAdoptModal,
+          closeAdoptModal,
+          submitAdoption
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
